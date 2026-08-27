@@ -15,6 +15,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "grammy": "^1.46.0",
     "pino": "^9.4.0"
   },
   "devDependencies": {

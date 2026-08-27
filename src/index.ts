@@ -13,6 +13,7 @@ import { buildStorageService } from './storage/storage.service';
 import crypto from 'node:crypto';
 import { DeliveryService } from './downloads/delivery';
 import { buildReceiver } from './telegram/telegram.interface';
+import { buildBot } from './telegram/bot.adapter';
 import { MockStorageProvider } from './storage/providers/mock.provider';
 import { Readable } from 'node:stream';
 
@@ -69,6 +70,18 @@ export async function main() {
   });
   const receiver = buildReceiver(config.useMocks, logger);
 
+  // Phase 2: Bot API adapter (only active when a real token is configured).
+  const bot = buildBot(
+    config,
+    {
+      onFile: (meta) => logger.info('telegram(bot): onFile', { kind: meta.kind, fileName: meta.fileName }),
+      onStart: (chatId) => logger.info('telegram(bot): /start', { chatId }),
+      onUnauthorized: (chatId) => logger.warn('telegram(bot): unauthorized', { chatId }),
+    },
+    logger,
+  );
+  await bot?.start();
+
   await receiver.start({
     onStart: () => logger.info('telegram: ready ( Phase 2/3 will handle files )'),
     onFile: () => undefined,
@@ -78,10 +91,11 @@ export async function main() {
     await smokeCheck(logger);
   }
 
-  logger.info('boot: Phase 1 bootstrap complete (interfaces only; full pipeline in later phases)');
+  logger.info('boot: Phase 2 bootstrap complete (bot layer wired; live pipeline in later phases)');
   // Keep process alive only when not in test env.
   if (process.env.NODE_ENV !== 'test') {
-    // In a real run the receiver would block here; for Phase 1 we exit cleanly.
+    // In a real run the receiver/bot would block here; for Phase 2 we exit cleanly.
+    await bot?.stop();
     await receiver.stop();
   }
 }
